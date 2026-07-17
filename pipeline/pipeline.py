@@ -21,6 +21,7 @@ class Pipeline:
         ENABLE_DIARIZATION: bool = True
 
     def __init__(self):
+        self.valves = self.Valves() 
         self.transcriber = None
         self.orchestrator = None
 

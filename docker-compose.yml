@@ -16,9 +16,9 @@ services:
   # === Ollama (локальная LLM) ===
   ollama:
     image: ollama/ollama:latest
-    container_name: ollama
+    container_name: ollama_local
     ports:
-      - "11434:11434"
+      - "11435:11434"
     volumes:
       - ollama:/root/.ollama
     restart: unless-stopped

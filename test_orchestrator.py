@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Sergey Postnikov. All rights reserved.
+# Данное решение выполнено исключительно для рассмотрения кандидатуры на вакансию.
 # test_orchestrator.py
 import asyncio
 import os

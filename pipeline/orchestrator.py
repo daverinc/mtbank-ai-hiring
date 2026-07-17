@@ -4,13 +4,14 @@
 from typing import Dict, Any, List, TypedDict
 from langgraph.graph import StateGraph, END
 
+from core.llm.base import LLMClient
 from agents.classifier import ClassifierAgent
 from agents.quality import QualityAgent
 from agents.compliance import ComplianceAgent
 from agents.summarizer import SummarizerAgent
 
 
-# === Определение состояния (State) ===
+# === Определение состояния ===
 class AgentState(TypedDict):
     transcript: List[Dict[str, Any]]
     classification: Dict[str, Any]
@@ -22,33 +23,29 @@ class AgentState(TypedDict):
 
 class AgentOrchestrator:
     """
-    Оркестратор Multi-Agent системы на базе LangGraph.
-    Управляет запуском 4 агентов: Classifier → Quality → Compliance → Summarizer.
+    Оркестратор Multi-Agent системы.
+    Получает готовый LLMClient (Groq или Ollama) и передаёт его агентам.
     """
 
-    def __init__(self, groq_api_key: str, llm_model: str):
-        self.groq_api_key = groq_api_key
-        self.llm_model = llm_model
+    def __init__(self, llm_client: LLMClient):
+        self.llm_client = llm_client
 
-        # Инициализируем агентов
-        self.classifier = ClassifierAgent(groq_api_key, llm_model)
-        self.quality = QualityAgent(groq_api_key, llm_model)
-        self.compliance = ComplianceAgent(groq_api_key, llm_model)
-        self.summarizer = SummarizerAgent(groq_api_key, llm_model)
+        # Создаём агентов, передавая им LLMClient
+        self.classifier = ClassifierAgent(llm_client)
+        self.quality = QualityAgent(llm_client)
+        self.compliance = ComplianceAgent(llm_client)
+        self.summarizer = SummarizerAgent(llm_client)
 
         self.graph = self._build_graph()
 
     def _build_graph(self) -> StateGraph:
-        """Строит граф агентов с помощью LangGraph."""
         workflow = StateGraph(AgentState)
 
-        # Добавляем узлы (агентов)
         workflow.add_node("classifier", self._classifier_node)
         workflow.add_node("quality", self._quality_node)
         workflow.add_node("compliance", self._compliance_node)
         workflow.add_node("summarizer", self._summarizer_node)
 
-        # Определяем последовательность выполнения
         workflow.set_entry_point("classifier")
         workflow.add_edge("classifier", "quality")
         workflow.add_edge("quality", "compliance")
@@ -81,9 +78,6 @@ class AgentOrchestrator:
         return state
 
     async def run(self, transcript: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Запускает оркестрацию агентов.
-        """
         initial_state: AgentState = {
             "transcript": transcript,
             "classification": {},

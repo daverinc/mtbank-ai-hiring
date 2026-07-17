@@ -6,26 +6,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Устанавливаем HF_HOME (если задан)
 hf_home = os.getenv("HF_HOME")
 if hf_home:
     os.environ["HF_HOME"] = hf_home
 
+from core.llm.factory import get_llm_client
 from pipeline.orchestrator import AgentOrchestrator
 
 
 async def main():
-    api_key = os.getenv("GROQ_API_KEY")
-    model = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
-
-    if not api_key:
-        print("Ошибка: GROQ_API_KEY не найден в .env")
-        return
-
-    print(f"Используется модель: {model}")
-    print("Запуск оркестратора с 4 агентами...\n")
-
-    orchestrator = AgentOrchestrator(groq_api_key=api_key, llm_model=model)
+    llm_client = get_llm_client()
+    orchestrator = AgentOrchestrator(llm_client)
 
     test_transcript = [
         {"speaker": "Оператор", "start": 0.0, "end": 4.2, "text": "Добрый день, МТБанк, меня зовут Анна, чем могу помочь?"},

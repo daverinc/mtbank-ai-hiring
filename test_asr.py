@@ -4,23 +4,20 @@ import asyncio
 import time
 from dotenv import load_dotenv
 
-# === Загружаем .env в самом начале ===
 load_dotenv()
 
-# === Устанавливаем HF_HOME до импорта моделей ===
 hf_home = os.getenv("HF_HOME")
 if hf_home:
     os.environ["HF_HOME"] = hf_home
-    print(f"[Config] HF_HOME установлен: {hf_home}")
 
 from asr.transcriber import Transcriber
 
 
 async def main():
-    huggingface_token = os.getenv("HF_TOKEN")
+    hf_token = os.getenv("HF_TOKEN")
     whisper_model = os.getenv("WHISPER_MODEL", "medium")
 
-    if not huggingface_token:
+    if not hf_token:
         print("Ошибка: HF_TOKEN не найден в .env")
         return
 
@@ -36,11 +33,7 @@ async def main():
 
     start_time = time.time()
 
-    transcriber = Transcriber(
-        model_size=whisper_model,
-        huggingface_token=huggingface_token
-    )
-
+    transcriber = Transcriber(model_size=whisper_model, hf_token=hf_token)
     result = await transcriber.run(audio_path)
     elapsed = time.time() - start_time
 

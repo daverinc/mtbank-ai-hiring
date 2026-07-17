@@ -1,14 +1,21 @@
 # test_classifier.py
-import asyncio
 import os
+import asyncio
 from dotenv import load_dotenv
-from agents.classifier import ClassifierAgent
 
 load_dotenv()
 
+# Устанавливаем HF_HOME (если задан)
+hf_home = os.getenv("HF_HOME")
+if hf_home:
+    os.environ["HF_HOME"] = hf_home
+
+from agents.classifier import ClassifierAgent
+
+
 async def main():
     api_key = os.getenv("GROQ_API_KEY")
-    model = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")  # значение по умолчанию
+    model = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
 
     if not api_key:
         print("Ошибка: GROQ_API_KEY не найден в .env")
@@ -18,7 +25,6 @@ async def main():
 
     agent = ClassifierAgent(groq_api_key=api_key, model=model)
 
-    # Тестовый транскрипт
     test_transcript = [
         {"speaker": "Оператор", "start": 0.0, "end": 4.2, "text": "Добрый день, МТБанк, меня зовут Анна, чем могу помочь?"},
         {"speaker": "Клиент", "start": 4.5, "end": 8.1, "text": "Здравствуйте. Хочу узнать про условия по кредиту наличными."},

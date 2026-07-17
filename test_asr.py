@@ -17,11 +17,11 @@ from asr.transcriber import Transcriber
 
 
 async def main():
-    huggingface_token = os.getenv("HUGGINGFACE_TOKEN")
+    huggingface_token = os.getenv("HF_TOKEN")
     whisper_model = os.getenv("WHISPER_MODEL", "medium")
 
     if not huggingface_token:
-        print("Ошибка: HUGGINGFACE_TOKEN не найден в .env")
+        print("Ошибка: HF_TOKEN не найден в .env")
         return
 
     audio_path = "test_data/call_01_dialog.wav"

@@ -1,12 +1,18 @@
-# Copyright (c) 2026 Sergey Postnikov. All rights reserved.
-# Данное решение выполнено исключительно для рассмотрения кандидатуры на вакансию.
 # test_orchestrator.py
-import asyncio
 import os
+import asyncio
+import json
 from dotenv import load_dotenv
-from pipeline.orchestrator import AgentOrchestrator
 
 load_dotenv()
+
+# Устанавливаем HF_HOME (если задан)
+hf_home = os.getenv("HF_HOME")
+if hf_home:
+    os.environ["HF_HOME"] = hf_home
+
+from pipeline.orchestrator import AgentOrchestrator
+
 
 async def main():
     api_key = os.getenv("GROQ_API_KEY")
@@ -21,7 +27,6 @@ async def main():
 
     orchestrator = AgentOrchestrator(groq_api_key=api_key, llm_model=model)
 
-    # Тестовый транскрипт
     test_transcript = [
         {"speaker": "Оператор", "start": 0.0, "end": 4.2, "text": "Добрый день, МТБанк, меня зовут Анна, чем могу помочь?"},
         {"speaker": "Клиент", "start": 4.5, "end": 8.1, "text": "Здравствуйте. Хочу узнать про условия по кредиту наличными."},
@@ -35,7 +40,6 @@ async def main():
     result = await orchestrator.run(test_transcript)
 
     print("=== Результат работы оркестратора ===\n")
-    import json
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 

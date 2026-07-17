@@ -10,7 +10,6 @@ from asr.diarizer import Diarizer
 class Transcriber:
     """
     Транскрибация аудио с использованием faster-whisper + pyannote диаризация.
-    Выполняет объединение транскрипта со спикерами.
     """
 
     def __init__(self, model_size: str = "medium", huggingface_token: str = None):
@@ -32,7 +31,7 @@ class Transcriber:
     async def run(self, audio_path: str) -> List[Dict[str, Any]]:
         """
         Выполняет транскрибацию и диаризацию.
-        Возвращает список сегментов со спикерами.
+        Возвращает список сегментов со спикерами (Оператор / Клиент).
         """
         self.load_model()
 
@@ -52,17 +51,22 @@ class Transcriber:
                 "text": segment.text.strip()
             })
 
-        # 2. Диаризация
+        # 2. Диаризация + маппинг спикеров
         if self.diarizer:
             try:
                 speaker_segments = self.diarizer.diarize(audio_path)
-                # Объединяем транскрипт со спикерами
                 result = self._merge_transcript_with_speakers(transcript_segments, speaker_segments)
+                result = self._map_speakers(result)
                 return result
             except Exception as e:
                 print(f"[Transcriber] Diarization failed: {e}")
+                for seg in transcript_segments:
+                    seg["speaker"] = "Unknown"
                 return transcript_segments
 
+        # Если диаризация отключена
+        for seg in transcript_segments:
+            seg["speaker"] = "Unknown"
         return transcript_segments
 
     def _merge_transcript_with_speakers(
@@ -74,7 +78,6 @@ class Transcriber:
         Объединяет транскрипт со спикерами по максимальному пересечению времени.
         """
         result = []
-
         for t_seg in transcript:
             t_start, t_end = t_seg["start"], t_seg["end"]
             best_speaker = "Unknown"
@@ -82,8 +85,6 @@ class Transcriber:
 
             for s_seg in speakers:
                 s_start, s_end = s_seg["start"], s_seg["end"]
-
-                # Вычисляем пересечение интервалов
                 overlap_start = max(t_start, s_start)
                 overlap_end = min(t_end, s_end)
                 overlap = max(0.0, overlap_end - overlap_start)
@@ -98,5 +99,26 @@ class Transcriber:
                 "end": t_end,
                 "text": t_seg["text"]
             })
-
         return result
+
+    def _map_speakers(self, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Преобразует SPEAKER_00 / SPEAKER_01 в Оператор / Клиент.
+        Первый появившийся спикер считается Оператором.
+        """
+        speaker_mapping = {}
+        operator_assigned = False
+
+        for segment in segments:
+            raw_speaker = segment.get("speaker", "Unknown")
+
+            if raw_speaker not in speaker_mapping:
+                if not operator_assigned:
+                    speaker_mapping[raw_speaker] = "Оператор"
+                    operator_assigned = True
+                else:
+                    speaker_mapping[raw_speaker] = "Клиент"
+
+            segment["speaker"] = speaker_mapping[raw_speaker]
+
+        return segments

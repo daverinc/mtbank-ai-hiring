@@ -14,10 +14,10 @@ from asr.transcriber import Transcriber
 
 
 async def main():
-    hf_token = os.getenv("HF_TOKEN")
+    huggingface_token = os.getenv("HF_TOKEN")
     whisper_model = os.getenv("WHISPER_MODEL", "medium")
 
-    if not hf_token:
+    if not huggingface_token:
         print("Ошибка: HF_TOKEN не найден в .env")
         return
 
@@ -33,13 +33,14 @@ async def main():
 
     start_time = time.time()
 
-    transcriber = Transcriber(model_size=whisper_model, hf_token=hf_token)
+    transcriber = Transcriber(model_size=whisper_model, huggingface_token=huggingface_token)
     result = await transcriber.run(audio_path)
     elapsed = time.time() - start_time
 
     print(f"\n=== Результат ASR ({len(result)} сегментов) ===\n")
     for seg in result:
-        print(f"[{seg['start']:.2f}s - {seg['end']:.2f}s] {seg['speaker']}: {seg['text']}")
+        speaker = seg.get("speaker", "Unknown")
+        print(f"[{seg['start']:.2f}s - {seg['end']:.2f}s] {speaker}: {seg['text']}")
 
     print(f"\nВремя выполнения: {elapsed:.1f} секунд")
 

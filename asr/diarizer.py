@@ -23,29 +23,27 @@ class Diarizer:
             print("[Diarizer] Loading pyannote/speaker-diarization-3.1 ...")
             self.pipeline = Pipeline.from_pretrained(
                 "pyannote/speaker-diarization-3.1",
-                use_auth_token=self.token
+                token=self.token          # ← было: use_auth_token
             )
-            # Используем GPU, если доступен
             if torch.cuda.is_available():
                 self.pipeline.to(torch.device("cuda"))
             print("[Diarizer] Model loaded successfully.")
 
     def diarize(self, audio_path: str) -> List[Dict[str, Any]]:
-        """
-        Выполняет диаризацию аудиофайла.
-        Возвращает список сегментов с метками спикеров.
-        """
         if self.pipeline is None:
             self.load()
 
         diarization = self.pipeline(audio_path)
 
         segments = []
-        for turn, _, speaker in diarization.itertracks(yield_label=True):
+
+        # Новый способ итерации для pyannote 3.1+
+        for segment, _, speaker in diarization.speaker_diarization.itertracks(yield_label=True):
             segments.append({
-                "start": round(turn.start, 2),
-                "end": round(turn.end, 2),
+                "start": round(segment.start, 2),
+                "end": round(segment.end, 2),
                 "speaker": speaker
             })
 
         return segments
+

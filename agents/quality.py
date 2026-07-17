@@ -3,19 +3,18 @@
 
 import json
 from typing import Dict, Any, List
-from groq import AsyncGroq
+
+from core.llm.base import LLMClient
 
 
 class QualityAgent:
     """
     Агент оценки качества обслуживания.
-    Проверяет соблюдение чек-листа оператора.
     """
 
     SYSTEM_PROMPT = """Ты — эксперт по оценке качества обслуживания в контакт-центре МТБанка.
-Твоя задача — оценить качество работы оператора по чек-листу.
+Оцени качество работы оператора по чек-листу и верни JSON:
 
-Верни JSON строго в следующем формате:
 {
   "total": 0-100,
   "checklist": {
@@ -26,11 +25,10 @@ class QualityAgent:
   }
 }
 
-Оценивай только по предоставленному транскрипту. Отвечай только JSON."""
+Отвечай только JSON."""
 
-    def __init__(self, groq_api_key: str, model: str = "llama-3.3-70b-versatile"):
-        self.client = AsyncGroq(api_key=groq_api_key)
-        self.model = model
+    def __init__(self, llm_client: LLMClient):
+        self.llm_client = llm_client
 
     async def run(self, transcript: List[Dict[str, Any]]) -> Dict[str, Any]:
         dialog_text = "\n".join(
@@ -40,8 +38,7 @@ class QualityAgent:
         user_prompt = f"Оцени качество обслуживания по чек-листу:\n\n{dialog_text}"
 
         try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
+            response = await self.llm_client.chat_completion(
                 messages=[
                     {"role": "system", "content": self.SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt}
@@ -51,7 +48,7 @@ class QualityAgent:
                 response_format={"type": "json_object"}
             )
 
-            result = json.loads(response.choices[0].message.content)
+            result = json.loads(response)
             return {
                 "total": result.get("total", 70),
                 "checklist": result.get("checklist", {})

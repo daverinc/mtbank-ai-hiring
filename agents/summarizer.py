@@ -3,19 +3,18 @@
 
 import json
 from typing import Dict, Any, List
-from groq import AsyncGroq
+
+from core.llm.base import LLMClient
 
 
 class SummarizerAgent:
     """
-    Агент суммаризации.
-    Формирует краткое резюме и список action items.
+    Агент суммаризации и выделения action items.
     """
 
     SYSTEM_PROMPT = """Ты — аналитик контакт-центра.
-Сделай краткое резюме разговора и выдели action items.
+Сделай краткое резюме разговора и выдели action items. Верни JSON:
 
-Верни JSON:
 {
   "summary": "Краткое резюме в 3-5 предложениях",
   "action_items": ["список действий"]
@@ -23,9 +22,8 @@ class SummarizerAgent:
 
 Отвечай только JSON."""
 
-    def __init__(self, groq_api_key: str, model: str = "llama-3.3-70b-versatile"):
-        self.client = AsyncGroq(api_key=groq_api_key)
-        self.model = model
+    def __init__(self, llm_client: LLMClient):
+        self.llm_client = llm_client
 
     async def run(self, transcript: List[Dict[str, Any]]) -> Dict[str, Any]:
         dialog_text = "\n".join(
@@ -35,8 +33,7 @@ class SummarizerAgent:
         user_prompt = f"Сделай резюме и action items:\n\n{dialog_text}"
 
         try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
+            response = await self.llm_client.chat_completion(
                 messages=[
                     {"role": "system", "content": self.SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt}
@@ -46,7 +43,7 @@ class SummarizerAgent:
                 response_format={"type": "json_object"}
             )
 
-            result = json.loads(response.choices[0].message.content)
+            result = json.loads(response)
             return {
                 "summary": result.get("summary", ""),
                 "action_items": result.get("action_items", [])

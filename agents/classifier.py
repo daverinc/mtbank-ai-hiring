@@ -3,38 +3,30 @@
 
 import json
 from typing import Dict, Any, List
-from groq import AsyncGroq
+
+from core.llm.base import LLMClient
 
 
 class ClassifierAgent:
     """
     Агент классификации обращений.
-    Определяет тематику и приоритет обращения.
     """
 
     SYSTEM_PROMPT = """Ты — опытный аналитик контакт-центра МТБанка.
 Твоя задача — классифицировать обращение клиента по транскрипту разговора.
 
-Ты должен вернуть JSON-объект строго в следующем формате:
+Верни JSON строго в формате:
 {
   "topic": "кредиты | карты | переводы | жалобы | другое",
   "priority": "low | medium | high"
 }
 
-Правила:
-- topic должен быть на русском языке и соответствовать одному из предложенных вариантов.
-- priority определяется по срочности и эмоциональному состоянию клиента.
-- Отвечай только JSON, без лишнего текста."""
+Отвечай только JSON."""
 
-    def __init__(self, groq_api_key: str, model: str = "llama-3.3-70b-versatile"):
-        self.client = AsyncGroq(api_key=groq_api_key)
-        self.model = model
+    def __init__(self, llm_client: LLMClient):
+        self.llm_client = llm_client
 
     async def run(self, transcript: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Классифицирует обращение на основе транскрипта.
-        """
-        # Преобразуем транскрипт в текст
         dialog_text = "\n".join(
             [f"{turn.get('speaker', 'Unknown')}: {turn.get('text', '')}" for turn in transcript]
         )
@@ -42,8 +34,7 @@ class ClassifierAgent:
         user_prompt = f"Проанализируй следующий диалог и верни JSON:\n\n{dialog_text}"
 
         try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
+            response = await self.llm_client.chat_completion(
                 messages=[
                     {"role": "system", "content": self.SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt}
@@ -53,7 +44,7 @@ class ClassifierAgent:
                 response_format={"type": "json_object"}
             )
 
-            result = json.loads(response.choices[0].message.content)
+            result = json.loads(response)
             return {
                 "topic": result.get("topic", "другое"),
                 "priority": result.get("priority", "medium")

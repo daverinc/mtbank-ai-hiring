@@ -3,34 +3,27 @@
 
 import json
 from typing import Dict, Any, List
-from groq import AsyncGroq
+
+from core.llm.base import LLMClient
 
 
 class ComplianceAgent:
     """
     Агент проверки compliance.
-    Проверяет запрещённые фразы и обязательные disclaimers.
     """
 
     SYSTEM_PROMPT = """Ты — специалист по compliance в банковском контакт-центре.
-Проверь транскрипт на наличие нарушений.
+Проверь транскрипт на наличие нарушений и верни JSON:
 
-Верни JSON:
 {
   "passed": true/false,
   "issues": ["список нарушений"]
 }
 
-Проверяй:
-- Запрещённые фразы
-- Отсутствие обязательных disclaimers
-- Некорректные обещания или гарантии
-
 Отвечай только JSON."""
 
-    def __init__(self, groq_api_key: str, model: str = "llama-3.3-70b-versatile"):
-        self.client = AsyncGroq(api_key=groq_api_key)
-        self.model = model
+    def __init__(self, llm_client: LLMClient):
+        self.llm_client = llm_client
 
     async def run(self, transcript: List[Dict[str, Any]]) -> Dict[str, Any]:
         dialog_text = "\n".join(
@@ -40,8 +33,7 @@ class ComplianceAgent:
         user_prompt = f"Проверь соблюдение compliance:\n\n{dialog_text}"
 
         try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
+            response = await self.llm_client.chat_completion(
                 messages=[
                     {"role": "system", "content": self.SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt}
@@ -51,7 +43,7 @@ class ComplianceAgent:
                 response_format={"type": "json_object"}
             )
 
-            result = json.loads(response.choices[0].message.content)
+            result = json.loads(response)
             return {
                 "passed": result.get("passed", True),
                 "issues": result.get("issues", [])

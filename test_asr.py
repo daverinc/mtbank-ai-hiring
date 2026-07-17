@@ -1,11 +1,19 @@
 # test_asr.py
-import asyncio
 import os
+import asyncio
 import time
 from dotenv import load_dotenv
-from asr.transcriber import Transcriber
 
+# === Загружаем .env в самом начале ===
 load_dotenv()
+
+# === Устанавливаем HF_HOME до импорта моделей ===
+hf_home = os.getenv("HF_HOME")
+if hf_home:
+    os.environ["HF_HOME"] = hf_home
+    print(f"[Config] HF_HOME установлен: {hf_home}")
+
+from asr.transcriber import Transcriber
 
 
 async def main():
@@ -16,12 +24,10 @@ async def main():
         print("Ошибка: HUGGINGFACE_TOKEN не найден в .env")
         return
 
-    # Путь к тестовому аудиофайлу (поменяй при необходимости)
     audio_path = "test_data/call_01_dialog.wav"
 
     if not os.path.exists(audio_path):
         print(f"Ошибка: Файл не найден: {audio_path}")
-        print("Положи тестовый аудиофайл в папку test_data/")
         return
 
     print(f"Модель Whisper: {whisper_model}")
@@ -36,7 +42,6 @@ async def main():
     )
 
     result = await transcriber.run(audio_path)
-
     elapsed = time.time() - start_time
 
     print(f"\n=== Результат ASR ({len(result)} сегментов) ===\n")

@@ -26,7 +26,7 @@ class ClassifierAgent:
 - priority определяется по срочности и эмоциональному состоянию клиента.
 - Отвечай только JSON, без лишнего текста."""
 
-    def __init__(self, groq_api_key: str, model: str = "qwen2.5:32b"):
+    def __init__(self, groq_api_key: str, model: str = "llama-3.3-70b-versatile"):
         self.client = AsyncGroq(api_key=groq_api_key)
         self.model = model
 

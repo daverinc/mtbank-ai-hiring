@@ -38,6 +38,7 @@ huggingface_hub==1.23.0
 idna==3.18
 Jinja2==3.1.6
 jiter==0.16.0
+jiwer==4.0.0
 joblib==1.5.3
 jsonpatch==1.33
 jsonpointer==3.1.1
@@ -112,6 +113,7 @@ python-dotenv==1.2.2
 pytorch-lightning==2.6.5
 pytorch-metric-learning==2.9.0
 PyYAML==6.0.3
+RapidFuzz==3.14.5
 requests==2.34.2
 requests-toolbelt==1.0.0
 rich==15.0.0

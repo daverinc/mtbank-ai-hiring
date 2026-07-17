@@ -79,6 +79,75 @@ class Pipeline:
 
     def _format_response(self, transcript: List[Dict], analysis: Dict) -> str:
         """
+        Форматирование результата анализа звонка в красивый markdown.
+        """
+        classification = analysis.get("classification", {})
+        quality = analysis.get("quality_score", {})
+        compliance = analysis.get("compliance", {})
+        summary = analysis.get("summary", "")
+        action_items = analysis.get("action_items", [])
+
+        # === Заголовок ===
+        output = "# 📞 Результат анализа звонка\n\n"
+
+        # === Классификация ===
+        output += "## 🏷️ Классификация\n"
+        output += f"- **Тема:** `{classification.get('topic', '—')}`\n"
+        output += f"- **Приоритет:** `{classification.get('priority', '—')}`\n\n"
+
+        # === Оценка качества ===
+        output += "## ⭐️ Оценка качества обслуживания\n"
+        output += f"**Общий балл:** `{quality.get('total', 0)}/100`\n\n"
+
+        checklist = quality.get("checklist", {})
+        if checklist:
+            output += "### Чек-лист:\n"
+            for key, value in checklist.items():
+                emoji = "✅" if value else "❌"
+                output += f"- {emoji} {key.replace('_', ' ').title()}\n"
+            output += "\n"
+
+        # === Compliance ===
+        output += "## 🛡️ Compliance\n"
+        passed = compliance.get("passed", True)
+        output += f"**Статус:** {'✅ Пройден' if passed else '❌ Есть нарушения'}\n"
+
+        issues = compliance.get("issues", [])
+        if issues:
+            output += "\n**Выявленные нарушения:**\n"
+            for issue in issues:
+                output += f"- ⚠️ {issue}\n"
+        output += "\n"
+
+        # === Резюме ===
+        output += "## 📝 Резюме разговора\n"
+        output += f"{summary}\n\n"
+
+        # === Action Items ===
+        output += "## ✅ Рекомендации (Action Items)\n"
+        if action_items:
+            for item in action_items:
+                output += f"- {item}\n"
+        else:
+            output += "- Нет рекомендаций\n"
+        output += "\n"
+
+        # === Транскрипт (сокращённый) ===
+        output += "## 📜 Транскрипт (первые 15 реплик)\n"
+        for seg in transcript[:15]:
+            output += f"- **{seg['speaker']}** ({seg['start']}s): {seg['text']}\n"
+
+        if len(transcript) > 15:
+            output += f"\n_... и ещё {len(transcript) - 15} реплик_\n"
+
+        output += "\n---\n"
+        output += "*Анализ выполнен автоматически с помощью Multi-Agent системы.*"
+
+        return output
+
+    
+    def _format_response(self, transcript: List[Dict], analysis: Dict) -> str:
+        """
         Форматирование результата в markdown для чата OpenWebUI.
         """
         output = "### Результат анализа звонка\n\n"

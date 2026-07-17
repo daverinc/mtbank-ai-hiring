@@ -20,9 +20,10 @@ services:
     ports:
       - "11435:11434"
     volumes:
-      - ollama:/root/.ollama
+      - rag_ollama_data:/root/.ollama
     restart: unless-stopped
 
 volumes:
   openwebui:
-  ollama:
+  rag_ollama_data:
+    external: true

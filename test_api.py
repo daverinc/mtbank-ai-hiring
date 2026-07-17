@@ -1,24 +1,28 @@
-"""
-Убедись, что API запущен:
-uvicorn api.main:app --reload --port 8000
-Запусти тест:
-python3 test_api.py
-
-Проверяет /health
-Тестирует загрузку файла
-Тестирует загрузку по URL (закомментировано)
-Красиво выводит результаты
-"""
 # test_api.py
 import requests
 import json
 import os
+from datetime import datetime
 
 API_URL = "http://localhost:8000"
+RESULTS_DIR = "test_results"
+os.makedirs(RESULTS_DIR, exist_ok=True)
+
+
+def save_result(filename: str, data: dict):
+    """Сохраняет результат анализа в JSON-файл."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base_name = os.path.splitext(os.path.basename(filename))[0]
+    output_path = os.path.join(RESULTS_DIR, f"{base_name}_{timestamp}.json")
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    print(f"Результат сохранён: {output_path}\n")
+    return output_path
 
 
 def test_health():
-    """Проверка работоспособности API"""
     print("=== Тест Health Check ===")
     try:
         response = requests.get(f"{API_URL}/health")
@@ -29,7 +33,6 @@ def test_health():
 
 
 def test_analyze_file(file_path: str):
-    """Тест анализа аудиофайла"""
     print(f"=== Тест анализа файла: {file_path} ===")
 
     if not os.path.exists(file_path):
@@ -52,27 +55,10 @@ def test_analyze_file(file_path: str):
             print(f"Качество: {result.get('quality_score', {}).get('total')}")
             print(f"Compliance: {result.get('compliance', {}).get('passed')}")
             print(f"Summary: {result.get('summary', '')[:100]}...")
-        else:
-            print(f"Ошибка: {response.text}")
 
-    except Exception as e:
-        print(f"Ошибка запроса: {e}")
+            # Сохраняем результат
+            save_result(file_path, result)
 
-    print()
-
-
-def test_analyze_url(url: str):
-    """Тест анализа по URL"""
-    print(f"=== Тест анализа по URL: {url} ===")
-    try:
-        payload = {"url": url}
-        response = requests.post(f"{API_URL}/analyze", json=payload)
-
-        print(f"Status: {response.status_code}")
-        if response.status_code == 200:
-            result = response.json()
-            print("Анализ по URL успешно выполнен!")
-            print(f"Транскрипт: {len(result.get('transcript', []))} сегментов")
         else:
             print(f"Ошибка: {response.text}")
 
@@ -83,11 +69,5 @@ def test_analyze_url(url: str):
 
 
 if __name__ == "__main__":
-    # 1. Проверка здоровья
     test_health()
-
-    # 2. Анализ файла
     test_analyze_file("test_data/call_01_dialog.wav")
-
-    # 3. Анализ по URL (раскомментируй, если нужен)
-    # test_analyze_url("https://example.com/audio.wav")

@@ -10,6 +10,7 @@ services:
     volumes:
       - .:/app
       - ./models:/app/models
+      - ./api:/app/api
       - ./test_data:/app/test_data
       - ./test_results:/app/test_results
     env_file:

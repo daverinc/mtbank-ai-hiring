@@ -12,7 +12,7 @@ from pydantic import BaseModel, HttpUrl
 from dotenv import load_dotenv
 
 from asr.transcriber import Transcriber
-from pipeline.orchestrator import AgentOrchestrator
+from multiagent.orchestrator import AgentOrchestrator
 from core.llm.factory import get_llm_client
 
 warnings.filterwarnings("ignore", category=UserWarning, module="pyannote")

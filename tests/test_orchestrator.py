@@ -1,38 +1,66 @@
-# test_orchestrator.py
-import os
-import asyncio
-import json
-from dotenv import load_dotenv
+# tests/test_orchestrator.py
+import pytest
+from unittest.mock import AsyncMock, MagicMock
 
-load_dotenv()
+from multiagent.orchestrator import AgentOrchestrator
 
-hf_home = os.getenv("HF_HOME")
-if hf_home:
-    os.environ["HF_HOME"] = hf_home
+@pytest.fixture
+def mock_agents():
+    """Фикстура с замоканными агентами."""
+    mock_classifier = MagicMock()
+    mock_classifier.run = AsyncMock(return_value={"topic": "кредиты", "priority": "medium"})
 
-from core.llm.factory import get_llm_client
-from pipeline.orchestrator import AgentOrchestrator
+    mock_quality = MagicMock()
+    mock_quality.run = AsyncMock(return_value={
+        "total": 85,
+        "checklist": {"greeting": True, "need_detection": True, "solution_provided": True, "farewell": False}
+    })
+
+    mock_compliance = MagicMock()
+    mock_compliance.run = AsyncMock(return_value={"passed": True, "issues": []})
+
+    mock_summarizer = MagicMock()
+    mock_summarizer.run = AsyncMock(return_value={
+        "summary": "Клиент обратился по вопросу кредита.",
+        "action_items": ["Отправить информацию на email"]
+    })
+
+    return mock_classifier, mock_quality, mock_compliance, mock_summarizer
 
 
-async def main():
-    llm_client = get_llm_client()
-    orchestrator = AgentOrchestrator(llm_client)
+@pytest.mark.asyncio
+async def test_orchestrator_runs_all_agents(mock_llm_client, mock_agents):
+    """Проверяем, что AgentOrchestrator последовательно вызывает всех 4 агентов."""
+    mock_classifier, mock_quality, mock_compliance, mock_summarizer = mock_agents
 
-    test_transcript = [
-        {"speaker": "Оператор", "start": 0.0, "end": 4.2, "text": "Добрый день, МТБанк, меня зовут Анна, чем могу помочь?"},
-        {"speaker": "Клиент", "start": 4.5, "end": 8.1, "text": "Здравствуйте. Хочу узнать про условия по кредиту наличными."},
-        {"speaker": "Оператор", "start": 8.5, "end": 15.0, "text": "Конечно, подскажите, пожалуйста, какая сумма вас интересует и на какой срок?"},
-        {"speaker": "Клиент", "start": 15.3, "end": 18.0, "text": "Примерно десять тысяч рублей, на год."},
-        {"speaker": "Оператор", "start": 18.5, "end": 25.0, "text": "Отлично. На данный момент ставка от 14.9% годовых, решение за 15 минут."},
-        {"speaker": "Клиент", "start": 25.5, "end": 28.0, "text": "Хорошо, тогда я попробую подать через приложение."},
-        {"speaker": "Оператор", "start": 28.5, "end": 33.0, "text": "Спасибо за обращение в МТБанк, хорошего дня!"},
+    orchestrator = AgentOrchestrator(llm_client=mock_llm_client)
+
+    # Подменяем реальные агенты на моки
+    orchestrator.classifier = mock_classifier
+    orchestrator.quality = mock_quality
+    orchestrator.compliance = mock_compliance
+    orchestrator.summarizer = mock_summarizer
+
+    transcript = [
+        {"speaker": "Оператор", "start": 0.0, "end": 4.2, "text": "Добрый день, МТБанк."},
+        {"speaker": "Клиент", "start": 4.5, "end": 8.1, "text": "Хочу узнать про кредит."},
     ]
 
-    result = await orchestrator.run(test_transcript)
+    result = await orchestrator.run(transcript)
 
-    print("=== Результат работы оркестратора ===\n")
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    # Проверяем, что все агенты были вызваны
+    mock_classifier.run.assert_awaited_once()
+    mock_quality.run.assert_awaited_once()
+    mock_compliance.run.assert_awaited_once()
+    mock_summarizer.run.assert_awaited_once()
 
+    # Проверяем структуру итогового результата
+    assert "classification" in result
+    assert "quality_score" in result
+    assert "compliance" in result
+    assert "summary" in result
+    assert "action_items" in result
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    assert result["classification"]["topic"] == "кредиты"
+    assert result["quality_score"]["total"] == 85
+    assert result["compliance"]["passed"] is True

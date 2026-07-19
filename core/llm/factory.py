@@ -1,9 +1,14 @@
 # core/llm/factory.py
 import os
 import logging
+from dotenv import load_dotenv
+
 from core.llm.base import LLMClient
 from core.llm.groq_client import GroqClient
 from core.llm.ollama_client import OllamaClient
+
+# Загружаем переменные из .env
+load_dotenv()
 
 logger = logging.getLogger("llm.factory")
 

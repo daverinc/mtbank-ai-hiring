@@ -1,4 +1,8 @@
 # tests/conftest.py
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import pytest
 import os
 from unittest.mock import AsyncMock, MagicMock

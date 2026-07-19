@@ -1,15 +1,23 @@
+# pipeline.py
 # Copyright (c) 2026 Sergey Postnikov. All rights reserved.
 # Данное решение выполнено исключительно для рассмотрения кандидатуры на вакансию.
+
+from dotenv import load_dotenv
+
+load_dotenv() 
 
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import os
 import tempfile
 import requests
+import logging
 
 from core.llm.factory import get_llm_client
 from asr.transcriber import Transcriber
 from multiagent.orchestrator import AgentOrchestrator
+
+logger = logging.getLogger("pipeline")
 
 
 class Pipeline:
@@ -29,41 +37,44 @@ class Pipeline:
 
     async def on_startup(self):
         """Инициализация компонентов при старте Pipeline."""
-        print("[Pipeline] Initializing components...")
+        logger.info("[Pipeline] Initializing components...")
 
-        # ASR
         self.transcriber = Transcriber(
             model_size=self.valves.WHISPER_MODEL,
             huggingface_token=self.valves.HF_TOKEN
         )
 
-        # Multi-Agent Orchestrator
         llm_client = get_llm_client()
         self.orchestrator = AgentOrchestrator(llm_client)
 
-        print("[Pipeline] Initialization complete.")
+        logger.info("[Pipeline] Initialization complete.")
 
     async def pipe(self, body: dict, __user__: Optional[dict] = None) -> str:
         """
         Основная точка входа Pipeline.
         """
-        # 1. Извлечение аудио
+        if self.transcriber is None or self.orchestrator is None:
+            logger.error("[Pipeline] Pipeline components are not initialized")
+            return "Ошибка: Pipeline не инициализирован."
+
         audio_input = self._extract_audio(body)
         if not audio_input:
             return "Ошибка: не удалось получить аудиофайл."
 
-        print(f"[Pipeline] Processing audio: {audio_input}")
+        logger.info(f"[Pipeline] Processing audio: {audio_input}")
 
-        # 2. ASR + Диаризация
-        transcript: List[Dict[str, Any]] = await self.transcriber.run(audio_input)
-        print(f"[Pipeline] Transcription done. Segments: {len(transcript)}")
+        try:
+            transcript: List[Dict[str, Any]] = await self.transcriber.run(audio_input)
+            logger.info(f"[Pipeline] Transcription done. Segments: {len(transcript)}")
 
-        # 3. Запуск Multi-Agent системы
-        analysis: Dict[str, Any] = await self.orchestrator.run(transcript)
-        print("[Pipeline] Agent analysis complete.")
+            analysis: Dict[str, Any] = await self.orchestrator.run(transcript)
+            logger.info("[Pipeline] Agent analysis complete.")
 
-        # 4. Формирование ответа
-        return self._format_response(transcript, analysis)
+            return self._format_response(transcript, analysis)
+
+        except Exception as e:
+            logger.exception(f"[Pipeline] Error during processing: {e}")
+            return "Ошибка при обработке аудиофайла."
 
     def _extract_audio(self, body: dict) -> Optional[str]:
         """
@@ -74,6 +85,7 @@ class Pipeline:
         """
         messages = body.get("messages", [])
         if not messages:
+            logger.warning("[Pipeline] No messages found in request body")
             return None
 
         last_message = messages[-1]
@@ -86,37 +98,50 @@ class Pipeline:
             file_path = file_info.get("path") or file_info.get("url")
 
             if file_path and os.path.exists(file_path):
+                logger.info(f"[Pipeline] Audio file received from upload: {file_path}")
                 return file_path
+            else:
+                logger.warning(f"[Pipeline] File path does not exist: {file_path}")
 
         # 2. Проверка на URL в сообщении
         if isinstance(content, str) and content.startswith(("http://", "https://")):
             try:
+                logger.info(f"[Pipeline] Attempting to download audio from URL: {content}")
                 response = requests.get(content, timeout=30)
-                if response.status_code == 200:
-                    suffix = os.path.splitext(content)[1] or ".wav"
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                        tmp.write(response.content)
-                        return tmp.name
-            except Exception as e:
-                print(f"[Pipeline] Failed to download audio from URL: {e}")
+                response.raise_for_status()
 
+                suffix = os.path.splitext(content)[1] or ".wav"
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                    tmp.write(response.content)
+                    logger.info(f"[Pipeline] Audio downloaded successfully to: {tmp.name}")
+                    return tmp.name
+
+            except requests.exceptions.RequestException as e:
+                logger.error(f"[Pipeline] Failed to download audio from URL: {e}")
+            except Exception as e:
+                logger.error(f"[Pipeline] Unexpected error while downloading audio: {e}")
+
+        logger.warning("[Pipeline] No valid audio source found in the request")
         return None
 
     def _format_response(self, transcript: List[Dict], analysis: Dict) -> str:
         """
         Форматирование результата анализа звонка в красивый markdown.
+        Устойчив к неполным данным от агентов.
         """
-        classification = analysis.get("classification", {})
-        quality = analysis.get("quality_score", {})
-        compliance = analysis.get("compliance", {})
-        summary = analysis.get("summary", "")
-        action_items = analysis.get("action_items", [])
+        if not analysis:
+            return "Ошибка: не удалось получить результаты анализа."
 
-        # === Заголовок ===
+        classification = analysis.get("classification", {}) or {}
+        quality = analysis.get("quality_score", {}) or {}
+        compliance = analysis.get("compliance", {}) or {}
+        summary = analysis.get("summary", "Резюме недоступно.")
+        action_items = analysis.get("action_items", []) or []
+
         output = "# 📞 Результат анализа звонка\n\n"
 
         # === Классификация ===
-        output += "## 🏷️ Классификация\n"
+        output += "## 🏷 Классификация\n"
         output += f"- **Тема:** `{classification.get('topic', '—')}`\n"
         output += f"- **Приоритет:** `{classification.get('priority', '—')}`\n\n"
 
@@ -124,7 +149,7 @@ class Pipeline:
         output += "## ⭐️ Оценка качества обслуживания\n"
         output += f"**Общий балл:** `{quality.get('total', 0)}/100`\n\n"
 
-        checklist = quality.get("checklist", {})
+        checklist = quality.get("checklist") or {}
         if checklist:
             output += "### Чек-лист:\n"
             for key, value in checklist.items():
@@ -133,11 +158,11 @@ class Pipeline:
             output += "\n"
 
         # === Compliance ===
-        output += "## 🛡️ Compliance\n"
+        output += "## 🛡 Compliance\n"
         passed = compliance.get("passed", True)
         output += f"**Статус:** {'✅ Пройден' if passed else '❌ Есть нарушения'}\n"
 
-        issues = compliance.get("issues", [])
+        issues = compliance.get("issues") or []
         if issues:
             output += "\n**Выявленные нарушения:**\n"
             for issue in issues:
@@ -157,10 +182,13 @@ class Pipeline:
             output += "- Нет рекомендаций\n"
         output += "\n"
 
-        # === Транскрипт (сокращённый) ===
+        # === Транскрипт ===
         output += "## 📜 Транскрипт (первые 15 реплик)\n"
         for seg in transcript[:15]:
-            output += f"- **{seg['speaker']}** ({seg['start']}s): {seg['text']}\n"
+            speaker = seg.get("speaker", "Unknown")
+            start = seg.get("start", 0)
+            text = seg.get("text", "")
+            output += f"- **{speaker}** ({start}s): {text}\n"
 
         if len(transcript) > 15:
             output += f"\n_... и ещё {len(transcript) - 15} реплик_\n"

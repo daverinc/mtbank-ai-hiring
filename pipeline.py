@@ -197,3 +197,5 @@ class Pipeline:
         output += "*Анализ выполнен автоматически с помощью Multi-Agent системы.*"
 
         return output
+    
+pipeline = Pipeline()

@@ -21,7 +21,7 @@ services:
       - ollama
     restart: unless-stopped
 
-  # === OpenWebUI ===
+  # === OpenWebUI === 
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: openwebui
@@ -29,10 +29,13 @@ services:
       - "9090:8080"
     volumes:
       - openwebui:/app/backend/data
+      - ./pipeline.py:/app/backend/pipelines/pipeline.py   # Pipeline файл
+      - ./pipeline.py:/app/backend/pipelines/0_pipeline.py 
+    env_file:
+      - .env
     environment:
-      - OLLAMA_BASE_URL=http://ollama:11434
-    depends_on:
-      - ollama
+      - ENABLE_PIPES=true
+      - PIPELINES_DIR=/app/backend/pipelines
     restart: unless-stopped
 
   # === Ollama ===

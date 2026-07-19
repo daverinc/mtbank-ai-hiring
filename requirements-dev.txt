@@ -1,0 +1,14 @@
+# requirements-dev.txt
+# Зависимости только для разработки и тестирования
+
+# === Тестирование ===
+pytest
+pytest-asyncio
+pytest-cov
+
+# === Покрытие кода ===
+coverage
+
+# === Утилиты (опционально, но полезно) ===
+# python-dotenv уже должен быть в requirements-api.txt
+# requests уже должен быть в requirements-api.txt

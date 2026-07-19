@@ -1,73 +1,85 @@
-# test_api.py
-import requests
-import json
+# tests/test_api.py
 import os
-from datetime import datetime
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+from fastapi.testclient import TestClient
 
-API_URL = "http://localhost:8000"
-RESULTS_DIR = "test_results"
-os.makedirs(RESULTS_DIR, exist_ok=True)
+from api.main import app
 
-
-def save_result(filename: str, data: dict):
-    """Сохраняет результат анализа в JSON-файл."""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base_name = os.path.splitext(os.path.basename(filename))[0]
-    output_path = os.path.join(RESULTS_DIR, f"{base_name}_{timestamp}.json")
-
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-    print(f"Результат сохранён: {output_path}\n")
-    return output_path
+client = TestClient(app)
 
 
-def test_health():
-    print("=== Тест Health Check ===")
-    try:
-        response = requests.get(f"{API_URL}/health")
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}\n")
-    except Exception as e:
-        print(f"Ошибка: {e}\n")
+@pytest.fixture(autouse=True)
+def mock_dependencies(monkeypatch):
+    """Автоматически подменяем transcriber и orchestrator."""
+    mock_transcriber = MagicMock()
+    mock_transcriber.run = AsyncMock(return_value=[
+        {"speaker": "Оператор", "start": 0.0, "end": 4.2, "text": "Добрый день, МТБанк."},
+        {"speaker": "Клиент", "start": 4.5, "end": 8.1, "text": "Хочу узнать про кредит."},
+    ])
 
+    mock_orchestrator = MagicMock()
+    mock_orchestrator.run = AsyncMock(return_value={
+        "classification": {"topic": "кредиты", "priority": "medium"},
+        "quality_score": {"total": 85, "checklist": {}},
+        "compliance": {"passed": True, "issues": []},
+        "summary": "Клиент обратился по вопросу кредита.",
+        "action_items": ["Отправить информацию на email"]
+    })
+
+    monkeypatch.setattr("api.main.transcriber", mock_transcriber)
+    monkeypatch.setattr("api.main.orchestrator", mock_orchestrator)
+
+
+# === Позитивные тесты ===
 
 def test_analyze_file(file_path: str):
-    print(f"=== Тест анализа файла: {file_path} ===")
+    """Тест отправки аудиофайла."""
+    with open(file_path, "rb") as f:
+        response = client.post(
+            "/analyze",
+            files={"file": (os.path.basename(file_path), f, "audio/wav")}
+        )
 
-    if not os.path.exists(file_path):
-        print(f"Файл не найден: {file_path}\n")
-        return
-
-    try:
-        with open(file_path, "rb") as f:
-            files = {"file": (os.path.basename(file_path), f, "audio/wav")}
-            response = requests.post(f"{API_URL}/analyze", files=files)
-
-        print(f"Status: {response.status_code}")
-
-        if response.status_code == 200:
-            result = response.json()
-            print("Анализ успешно выполнен!")
-            print(f"Транскрипт: {len(result.get('transcript', []))} сегментов")
-            print(f"Тема: {result.get('classification', {}).get('topic')}")
-            print(f"Приоритет: {result.get('classification', {}).get('priority')}")
-            print(f"Качество: {result.get('quality_score', {}).get('total')}")
-            print(f"Compliance: {result.get('compliance', {}).get('passed')}")
-            print(f"Summary: {result.get('summary', '')[:100]}...")
-
-            # Сохраняем результат
-            save_result(file_path, result)
-
-        else:
-            print(f"Ошибка: {response.text}")
-
-    except Exception as e:
-        print(f"Ошибка запроса: {e}")
-
-    print()
+    assert response.status_code == 200
+    data = response.json()
+    assert "transcript" in data
+    assert data["classification"]["topic"] == "кредиты"
 
 
-if __name__ == "__main__":
-    test_health()
-    test_analyze_file("test_data/call_01_dialog.wav")
+def test_health_check():
+    """Проверка эндпоинта /health."""
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+# === Негативные тесты ===
+
+def test_analyze_unsupported_file_format():
+    """Тест: неподдерживаемый формат файла."""
+    response = client.post(
+        "/analyze",
+        files={"file": ("test.txt", b"fake content", "text/plain")}
+    )
+    assert response.status_code == 400
+    assert "Unsupported file format" in response.json()["detail"]
+
+
+def test_analyze_file_too_large(monkeypatch):
+    """Тест: файл больше 50 MB."""
+    large_content = b"x" * (51 * 1024 * 1024)  # 51 MB
+
+    response = client.post(
+        "/analyze",
+        files={"file": ("large.wav", large_content, "audio/wav")}
+    )
+    assert response.status_code == 413
+    assert "File too large" in response.json()["detail"]
+
+
+def test_analyze_no_file_and_no_url():
+    """Тест: запрос без файла и без URL."""
+    response = client.post("/analyze", json={})
+    assert response.status_code == 400
+    assert "Either 'file' or 'url' must be provided" in response.json()["detail"]

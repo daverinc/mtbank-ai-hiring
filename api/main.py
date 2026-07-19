@@ -6,6 +6,7 @@ import logging
 import warnings
 import tempfile
 import requests
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, HTTPException, Body
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, HttpUrl
@@ -24,31 +25,15 @@ logger = logging.getLogger("api")
 
 
 def log_json(message: str, extra: dict = None):
-    """Вывод логов в JSON-формате"""
     log_data = {"message": message, "timestamp": time.time()}
     if extra:
         log_data.update(extra)
     logger.info(json.dumps(log_data, ensure_ascii=False))
 
 
-# === Модели ===
-class AnalyzeByUrl(BaseModel):
-    url: HttpUrl
-
-
-app = FastAPI(
-    title="MTBank Call Analytics API",
-    description="API для автоматического анализа звонков контакт-центра",
-    version="1.0.0"
-)
-
-transcriber = None
-orchestrator = None
-MAX_FILE_SIZE_MB = 50
-
-
-@app.on_event("startup")
-async def startup_event():
+# === Lifespan (замена on_event) ===
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     global transcriber, orchestrator
     log_json("API starting up...")
 
@@ -60,6 +45,25 @@ async def startup_event():
     orchestrator = AgentOrchestrator(llm_client)
 
     log_json("API startup complete")
+    yield
+    log_json("API shutting down")
+
+
+# === Модели ===
+class AnalyzeByUrl(BaseModel):
+    url: HttpUrl
+
+
+app = FastAPI(
+    title="MTBank Call Analytics API",
+    description="API для автоматического анализа звонков контакт-центра",
+    version="1.0.0",
+    lifespan=lifespan          # ← используем lifespan
+)
+
+transcriber = None
+orchestrator = None
+MAX_FILE_SIZE_MB = 50
 
 
 def _validate_file_size(file: UploadFile):
@@ -98,7 +102,6 @@ async def analyze_call(
     request_type = None
 
     try:
-        # === Определяем тип запроса ===
         if file:
             request_type = "file"
             if not file.filename.lower().endswith((".wav", ".mp3", ".ogg")):
@@ -117,7 +120,6 @@ async def analyze_call(
 
         log_json("Analysis started", {"type": request_type, "file": str(temp_path)})
 
-        # === ASR + Анализ ===
         transcript = await transcriber.run(temp_path)
         analysis = await orchestrator.run(transcript)
 

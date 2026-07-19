@@ -5,6 +5,8 @@ python-dotenv
 pydantic
 requests
 
+python-multipart
+
 # === ASR ===
 faster-whisper
 pyannote.audio

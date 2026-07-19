@@ -23,7 +23,7 @@ services:
 
   # === OpenWebUI ===
   openwebui:
-    image: ghcr.io/open-web-ui/open-webui:main
+    image: ghcr.io/open-webui/open-webui:main
     container_name: openwebui
     ports:
       - "9090:8080"

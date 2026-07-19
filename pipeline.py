@@ -9,7 +9,7 @@ import requests
 
 from core.llm.factory import get_llm_client
 from asr.transcriber import Transcriber
-from pipeline.orchestrator import AgentOrchestrator
+from multiagent.orchestrator import AgentOrchestrator
 
 
 class Pipeline:

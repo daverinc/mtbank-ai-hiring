@@ -1,33 +1,65 @@
+# ======================
 # Python
+# ======================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ======================
+# Virtual environments
+# ======================
 env/
 venv/
 ENV/
 .venv/
+.conda/
 
-# Environment
+# ======================
+# Environment variables
+# ======================
 .env
 .env.local
 
-# IDE
+# ======================
+# IDE / Editor
+# ======================
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
 
+# ======================
 # OS
+# ======================
 .DS_Store
 Thumbs.db
 
-# Audio / Test data (можно раскомментировать, если не хочешь коммитить аудио)
-# test_data/*.wav
-# test_data/*.mp3
-
-# Logs
+# ======================
+# Project specific
+# ======================
+models/
+mem/
+test_results/
 *.log
 
-models/
+# Аудио (раскомментируй, если не хочешь коммитить тестовые записи)
+# test_data/*.wav
+# test_data/*.mp3

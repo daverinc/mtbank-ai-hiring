@@ -1,0 +1,22 @@
+# === Core ===
+fastapi
+uvicorn[standard]
+python-dotenv
+pydantic
+requests
+
+# === ASR ===
+faster-whisper
+pyannote.audio
+torch
+torchaudio
+
+# === Multi-Agent + LLM ===
+langgraph
+langchain-core
+groq
+openai
+
+# === Utils ===
+jiwer
+pydub

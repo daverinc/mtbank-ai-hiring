@@ -1,15 +1,18 @@
+# agents/classifier.py
 # Copyright (c) 2026 Sergey Postnikov. All rights reserved.
-# Данное решение выполнено исключительно для рассмотрения кандидатуры на вакансию.
 
 import json
+import logging
 from typing import Dict, Any, List
 
 from core.llm.base import LLMClient
 
+logger = logging.getLogger("agents.classifier")
+
 
 class ClassifierAgent:
     """
-    Агент классификации обращений.
+    Агент классификации обращений (тема + приоритет).
     """
 
     SYSTEM_PROMPT = """Ты — опытный аналитик контакт-центра МТБанка.
@@ -51,5 +54,5 @@ class ClassifierAgent:
             }
 
         except Exception as e:
-            print(f"[ClassifierAgent] Error: {e}")
+            logger.error(f"[ClassifierAgent] Error: {e}")
             return {"topic": "другое", "priority": "medium"}

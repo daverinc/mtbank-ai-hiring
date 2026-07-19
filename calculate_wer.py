@@ -4,6 +4,7 @@ import warnings
 from dotenv import load_dotenv
 from jiwer import wer
 from faster_whisper import WhisperModel
+import torch
 
 warnings.filterwarnings("ignore", category=UserWarning, module="pyannote")
 

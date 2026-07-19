@@ -1,15 +1,18 @@
+# agents/quality.py
 # Copyright (c) 2026 Sergey Postnikov. All rights reserved.
-# Данное решение выполнено исключительно для рассмотрения кандидатуры на вакансию.
 
 import json
+import logging
 from typing import Dict, Any, List
 
 from core.llm.base import LLMClient
 
+logger = logging.getLogger("agents.quality")
+
 
 class QualityAgent:
     """
-    Агент оценки качества обслуживания.
+    Агент оценки качества обслуживания по чек-листу.
     """
 
     SYSTEM_PROMPT = """Ты — эксперт по оценке качества обслуживания в контакт-центре МТБанка.
@@ -55,5 +58,5 @@ class QualityAgent:
             }
 
         except Exception as e:
-            print(f"[QualityAgent] Error: {e}")
+            logger.error(f"[QualityAgent] Error: {e}")
             return {"total": 60, "checklist": {}}

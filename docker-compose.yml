@@ -1,7 +1,28 @@
 services:
+  # === FastAPI (основное приложение) ===
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mtbank_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - ./models:/app/models
+      - ./test_data:/app/test_data
+      - ./test_results:/app/test_results
+    env_file:
+      - .env
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434/v1
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
   # === OpenWebUI ===
   openwebui:
-    image: ghcr.io/open-webui/open-webui:main
+    image: ghcr.io/open-web-ui/open-webui:main
     container_name: openwebui
     ports:
       - "9090:8080"
@@ -13,7 +34,7 @@ services:
       - ollama
     restart: unless-stopped
 
-  # === Ollama (локальная LLM) ===
+  # === Ollama ===
   ollama:
     image: ollama/ollama:latest
     container_name: ollama_local

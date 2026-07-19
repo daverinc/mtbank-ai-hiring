@@ -1,15 +1,18 @@
+# agents/summarizer.py
 # Copyright (c) 2026 Sergey Postnikov. All rights reserved.
-# Данное решение выполнено исключительно для рассмотрения кандидатуры на вакансию.
 
 import json
+import logging
 from typing import Dict, Any, List
 
 from core.llm.base import LLMClient
 
+logger = logging.getLogger("agents.summarizer")
+
 
 class SummarizerAgent:
     """
-    Агент суммаризации и выделения action items.
+    Агент суммаризации разговора и выделения action items.
     """
 
     SYSTEM_PROMPT = """Ты — аналитик контакт-центра.
@@ -50,5 +53,5 @@ class SummarizerAgent:
             }
 
         except Exception as e:
-            print(f"[SummarizerAgent] Error: {e}")
+            logger.error(f"[SummarizerAgent] Error: {e}")
             return {"summary": "", "action_items": []}

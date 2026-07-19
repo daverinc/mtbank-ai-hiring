@@ -1,15 +1,18 @@
+# agents/compliance.py
 # Copyright (c) 2026 Sergey Postnikov. All rights reserved.
-# Данное решение выполнено исключительно для рассмотрения кандидатуры на вакансию.
 
 import json
+import logging
 from typing import Dict, Any, List
 
 from core.llm.base import LLMClient
 
+logger = logging.getLogger("agents.compliance")
+
 
 class ComplianceAgent:
     """
-    Агент проверки compliance.
+    Агент проверки compliance (запрещённые фразы, disclaimers и т.д.).
     """
 
     SYSTEM_PROMPT = """Ты — специалист по compliance в банковском контакт-центре.
@@ -50,5 +53,5 @@ class ComplianceAgent:
             }
 
         except Exception as e:
-            print(f"[ComplianceAgent] Error: {e}")
+            logger.error(f"[ComplianceAgent] Error: {e}")
             return {"passed": True, "issues": []}

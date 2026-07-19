@@ -1,14 +1,31 @@
+# pipeline/orchestrator.py
 # Copyright (c) 2026 Sergey Postnikov. All rights reserved.
-# Данное решение выполнено исключительно для рассмотрения кандидатуры на вакансию.
 
+import logging
+import json
+import time
 from typing import Dict, Any, List, TypedDict
 from langgraph.graph import StateGraph, END
 
-from core.llm.base import LLMClient
 from agents.classifier import ClassifierAgent
 from agents.quality import QualityAgent
 from agents.compliance import ComplianceAgent
 from agents.summarizer import SummarizerAgent
+
+
+# === Логирование ===
+logger = logging.getLogger("orchestrator")
+
+
+def log_agent_step(agent_name: str, input_data: Any, output_data: Any):
+    """Логирование входа и выхода каждого агента в JSON-формате."""
+    log_data = {
+        "timestamp": time.time(),
+        "agent": agent_name,
+        "input_segments": len(input_data) if isinstance(input_data, list) else 1,
+        "output_keys": list(output_data.keys()) if isinstance(output_data, dict) else type(output_data).__name__
+    }
+    logger.info(json.dumps(log_data, ensure_ascii=False))
 
 
 # === Определение состояния ===
@@ -23,14 +40,14 @@ class AgentState(TypedDict):
 
 class AgentOrchestrator:
     """
-    Оркестратор Multi-Agent системы.
-    Получает готовый LLMClient (Groq или Ollama) и передаёт его агентам.
+    Оркестратор Multi-Agent системы на базе LangGraph.
+    Поддерживает передачу llm_client (Groq / Ollama).
     """
 
-    def __init__(self, llm_client: LLMClient):
+    def __init__(self, llm_client):
         self.llm_client = llm_client
 
-        # Создаём агентов, передавая им LLMClient
+        # Инициализируем агентов
         self.classifier = ClassifierAgent(llm_client)
         self.quality = QualityAgent(llm_client)
         self.compliance = ComplianceAgent(llm_client)
@@ -39,6 +56,7 @@ class AgentOrchestrator:
         self.graph = self._build_graph()
 
     def _build_graph(self) -> StateGraph:
+        """Строит граф агентов."""
         workflow = StateGraph(AgentState)
 
         workflow.add_node("classifier", self._classifier_node)
@@ -58,26 +76,31 @@ class AgentOrchestrator:
 
     async def _classifier_node(self, state: AgentState) -> AgentState:
         result = await self.classifier.run(state["transcript"])
+        log_agent_step("classifier", state["transcript"], result)
         state["classification"] = result
         return state
 
     async def _quality_node(self, state: AgentState) -> AgentState:
         result = await self.quality.run(state["transcript"])
+        log_agent_step("quality", state["transcript"], result)
         state["quality_score"] = result
         return state
 
     async def _compliance_node(self, state: AgentState) -> AgentState:
         result = await self.compliance.run(state["transcript"])
+        log_agent_step("compliance", state["transcript"], result)
         state["compliance"] = result
         return state
 
     async def _summarizer_node(self, state: AgentState) -> AgentState:
         result = await self.summarizer.run(state["transcript"])
+        log_agent_step("summarizer", state["transcript"], result)
         state["summary"] = result["summary"]
         state["action_items"] = result["action_items"]
         return state
 
     async def run(self, transcript: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Запуск оркестрации."""
         initial_state: AgentState = {
             "transcript": transcript,
             "classification": {},

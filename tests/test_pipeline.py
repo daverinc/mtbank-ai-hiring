@@ -14,7 +14,7 @@ hf_home = os.getenv("HF_HOME")
 if hf_home:
     os.environ["HF_HOME"] = hf_home
 
-from pipeline.pipeline import Pipeline
+from pipeline import Pipeline
 
 
 async def main():

@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.conda/
+
+# Environment files
+.env
+.env.local
+.env.*
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific (тяжёлые и ненужные в образе)
+models/
+mem/
+test_results/
+*.log
+notes.md
+
+# Docker (не нужно копировать внутрь образа)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Аудио (можно раскомментировать, если не хочешь копировать тестовые файлы в образ)
+# test_data/*.wav
+# test_data/*.mp3

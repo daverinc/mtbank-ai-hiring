@@ -21,7 +21,19 @@ services:
       - ollama
     restart: unless-stopped
 
-  # === OpenWebUI === 
+   # === OpenWebUI Pipelines (отдельный сервис) ===
+  pipelines:
+    image: ghcr.io/open-webui/pipelines:main
+    container_name: pipelines
+    ports:
+      - "9099:9099"
+    volumes:
+      - ./pipelines:/app/pipelines          # Папка с твоими Pipeline'ами
+    environment:
+      - PIPELINES_DIR=/app/pipelines
+    restart: unless-stopped
+
+  # === OpenWebUI ===
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: openwebui
@@ -29,13 +41,13 @@ services:
       - "9090:8080"
     volumes:
       - openwebui:/app/backend/data
-      - ./pipeline.py:/app/backend/pipelines/pipeline.py   # Pipeline файл
-      - ./pipeline.py:/app/backend/pipelines/0_pipeline.py 
     env_file:
       - .env
     environment:
       - ENABLE_PIPES=true
-      - PIPELINES_DIR=/app/backend/pipelines
+      - PIPELINES_URL=http://pipelines:9099
+    depends_on:
+      - pipelines
     restart: unless-stopped
 
   # === Ollama ===

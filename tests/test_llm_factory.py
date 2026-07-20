@@ -11,12 +11,12 @@ def test_factory_returns_groq_client(monkeypatch):
     """Проверяем создание GroqClient с кастомной моделью."""
     monkeypatch.setenv("LLM_PROVIDER", "groq")
     monkeypatch.setenv("GROQ_API_KEY", "test_key_123")
-    monkeypatch.setenv("GROQ_MODEL", "llama-3.1-8b-instant")
+    monkeypatch.setenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
     client = get_llm_client()
 
     assert isinstance(client, GroqClient)
-    assert client.model == "llama-3.1-8b-instant"
+    assert client.model == "llama-3.3-70b-versatile"
 
 
 def test_factory_returns_ollama_client(monkeypatch):
@@ -71,7 +71,7 @@ def test_factory_ollama_without_model_uses_default(monkeypatch):
     client = get_llm_client()
 
     assert isinstance(client, OllamaClient)
-    assert client.model == "qwen2.5:32b"
+    assert client.model == "qwen2.5:7b"
 
 
 def test_factory_groq_without_model_uses_default(monkeypatch):

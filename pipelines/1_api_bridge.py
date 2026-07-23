@@ -21,6 +21,8 @@ file_handler = True
 
 class Pipeline:
 
+    sent = dict()
+
     class Valves(BaseModel):
         api_url: str = "http://api:8000/analyze"
         openwebui_url: str = "http://openwebui:8080"
@@ -39,8 +41,13 @@ class Pipeline:
     async def on_shutdown(self):
         logger.info(f"Stopping pipeline: {self.name}")
 
-    async def inlet(self, body: dict, __user__: dict) -> dict:
+    async def inlet(self, body: dict, user: dict) -> dict:
         logger.info("=== [INLET] START ===")
+
+        # Защита от повторного вызова
+        if Pipeline.sent.get(str(body)):
+            logger.info("[INLET] Файл уже был обработан. Пропускаем повторный вызов.")
+            return body
 
         try:
             files = []
@@ -58,35 +65,43 @@ class Pipeline:
                 return body
 
             file = files[0]
-            file_id = file.get("id")
             self.file_name = file.get("name", "audio.wav")
 
-            if not file_id:
-                logger.error("[INLET] У файла отсутствует 'id'")
-                return body
-
-            # Используем API-ключ из .env, если он задан
-            if self.valves.openwebui_api_key:
-                auth_token = self.valves.openwebui_api_key
-                logger.info("[INLET] Используется API-ключ из OPENWEBUI_API_KEY")
+            # Пробуем прочитать напрямую по пути
+            file_path = file.get("path")
+            if file_path and os.path.exists(file_path):
+                logger.info(f"[INLET] Читаем файл напрямую: {file_path}")
+                with open(file_path, "rb") as src:
+                    content = src.read()
             else:
-                auth_token = __user__.get("token", "")
-                logger.info("[INLET] Используется токен пользователя")
+                # Fallback — скачиваем через HTTP
+                logger.warning("[INLET] Поле 'path' недоступно, скачиваем через HTTP")
+                file_id = file.get("id")
+                if not file_id:
+                    logger.error("[INLET] У файла отсутствует 'id'")
+                    return body
 
-            headers = {"Authorization": f"Bearer {auth_token}"} if auth_token else {}
+                auth_token = self.valves.openwebui_api_key or user.get("token", "")
+                headers = {"Authorization": f"Bearer {auth_token}"} if auth_token else {}
 
-            content_url = f"{self.valves.openwebui_url}/api/v1/files/{file_id}/content"
-            logger.info(f"[INLET] Скачиваем файл: {content_url}")
+                content_url = f"{self.valves.openwebui_url}/api/v1/files/{file_id}/content"
+                logger.info(f"[INLET] Скачиваем файл: {content_url}")
 
-            response = requests.get(content_url, headers=headers, timeout=60)
+                response = requests.get(content_url, headers=headers, timeout=60)
+                if response.status_code != 200:
+                    logger.error(f"[INLET] Ошибка скачивания: {response.status_code}")
+                    return body
 
-            if response.status_code != 200:
-                logger.error(f"[INLET] Ошибка скачивания ({response.status_code}): {response.text}")
-                return body
+                content = response.content
 
+            # Сохраняем во временный файл
             with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-                tmp.write(response.content)
+                tmp.write(content)
                 self.temp_file_path = tmp.name
+
+
+            # Помечаем, что файл уже обработан
+            Pipeline.sent[str(body)] = True
 
             logger.info(f"[INLET] Файл сохранён: {self.temp_file_path}")
             logger.info("=== [INLET] END (успех) ===")
@@ -96,13 +111,18 @@ class Pipeline:
             logger.info("=== [INLET] END (ошибка) ===")
 
         return body
-
+        
     def pipe(
         self, user_message: str, model_id: str, messages: List[dict], body: dict
     ) -> Union[str, Generator, Iterator]:
         logger.info("=== [PIPE] START ===")
 
         try:
+            # Защита от повторной отправки
+            if Pipeline.sent.get(str(body)):
+                logger.info("[PIPE] Файл уже был отправлен. Пропускаем повторный вызов.")
+                return None
+
             if not self.temp_file_path or not os.path.exists(self.temp_file_path):
                 return "Ошибка: аудиофайл не был обработан в inlet."
 
@@ -112,6 +132,10 @@ class Pipeline:
                     files={"file": (self.file_name, f, "audio/wav")}
                 )
 
+            # Помечаем, что файл отправлен
+            Pipeline.sent[str(body)] = True
+      
+            # Удаляем временный файл
             if os.path.exists(self.temp_file_path):
                 os.remove(self.temp_file_path)
                 self.temp_file_path = None

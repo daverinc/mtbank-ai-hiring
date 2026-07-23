@@ -21,6 +21,7 @@ file_handler = True
 
 class Pipeline:
 
+    done = dict()
     sent = dict()
 
     class Valves(BaseModel):
@@ -44,11 +45,6 @@ class Pipeline:
     async def inlet(self, body: dict, user: dict) -> dict:
         logger.info("=== [INLET] START ===")
 
-        # Защита от повторного вызова
-        if Pipeline.sent.get(str(body)):
-            logger.info("[INLET] Файл уже был обработан. Пропускаем повторный вызов.")
-            return body
-
         try:
             files = []
             if "metadata" in body:
@@ -62,10 +58,16 @@ class Pipeline:
 
             if not files:
                 logger.warning("[INLET] Файлы не найдены")
-                return body
+                return body              
 
             file = files[0]
+
             self.file_name = file.get("name", "audio.wav")
+
+            # Защита от повторного вызова
+            if Pipeline.done.get(str(self.file_name)):
+                logger.info("[INLET] Файл уже был обработан. Пропускаем повторный вызов.")
+                return body
 
             # Пробуем прочитать напрямую по пути
             file_path = file.get("path")
@@ -101,7 +103,7 @@ class Pipeline:
 
 
             # Помечаем, что файл уже обработан
-            Pipeline.sent[str(body)] = True
+            Pipeline.done[str(self.file_name)] = True
 
             logger.info(f"[INLET] Файл сохранён: {self.temp_file_path}")
             logger.info("=== [INLET] END (успех) ===")
@@ -119,8 +121,8 @@ class Pipeline:
 
         try:
             # Защита от повторной отправки
-            if Pipeline.sent.get(str(body)):
-                logger.info("[PIPE] Файл уже был отправлен. Пропускаем повторный вызов.")
+            if Pipeline.sent.get(str(self.file_name)):
+                logger.info(f"[PIPE] Файл {self.file_name} уже был отправлен. Пропускаем повторный вызов.")
                 return None
 
             if not self.temp_file_path or not os.path.exists(self.temp_file_path):
@@ -133,7 +135,7 @@ class Pipeline:
                 )
 
             # Помечаем, что файл отправлен
-            Pipeline.sent[str(body)] = True
+            Pipeline.sent[str(self.file_name)] = True
       
             # Удаляем временный файл
             if os.path.exists(self.temp_file_path):

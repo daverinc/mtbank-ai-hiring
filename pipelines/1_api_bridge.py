@@ -66,7 +66,7 @@ class Pipeline:
 
             # Защита от повторного вызова
             if Pipeline.done.get(str(self.file_name)):
-                logger.info("[INLET] Файл уже был обработан. Пропускаем повторный вызов.")
+                logger.info(f"[INLET] Файл {self.file_name} уже был обработан. Пропускаем повторный вызов.")
                 return body
 
             # Пробуем прочитать напрямую по пути

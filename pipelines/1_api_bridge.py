@@ -41,79 +41,74 @@ class Pipeline:
 
     async def on_shutdown(self):
         logger.info(f"Stopping pipeline: {self.name}")
-
+    
     async def inlet(self, body: dict, user: dict) -> dict:
         logger.info("=== [INLET] START ===")
-
+    
         try:
             files = []
             if "metadata" in body:
                 user_msg = body["metadata"].get("user_message", {})
                 files = user_msg.get("files", [])
-
+    
             if not files:
                 files = body.get("files", [])
-
-            logger.info(f"[INLET] Найдено файлов: {len(files)}")
-
+    
             if not files:
                 logger.warning("[INLET] Файлы не найдены")
-                return body              
-
+                return body
+    
             file = files[0]
-
             self.file_name = file.get("name", "audio.wav")
+            file_id = file.get("id")
 
             # Защита от повторного вызова
             if Pipeline.done.get(str(self.file_name)):
                 logger.info(f"[INLET] Файл {self.file_name} уже был обработан. Пропускаем повторный вызов.")
                 return body
-
-            # Пробуем прочитать напрямую по пути
-            file_path = file.get("path")
-            if file_path and os.path.exists(file_path):
-                logger.info(f"[INLET] Читаем файл напрямую: {file_path}")
+    
+            if not file_id:
+                logger.error("[INLET] У файла отсутствует 'id'")
+                return body
+    
+            # === Пробуем найти файл в volume ===
+            possible_paths = [
+                f"/app/openwebui_data/uploads/{file_id}_{self.file_name}",
+                f"/app/openwebui_data/uploads/{file_id}",
+            ]
+    
+            file_path = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    file_path = path
+                    break
+    
+            if file_path:
+                logger.info(f"[INLET] Файл найден в volume: {file_path}")
                 with open(file_path, "rb") as src:
                     content = src.read()
             else:
-                # Fallback — скачиваем через HTTP
-                logger.warning("[INLET] Поле 'path' недоступно, скачиваем через HTTP")
-                file_id = file.get("id")
-                if not file_id:
-                    logger.error("[INLET] У файла отсутствует 'id'")
-                    return body
-
-                auth_token = self.valves.openwebui_api_key or user.get("token", "")
-                headers = {"Authorization": f"Bearer {auth_token}"} if auth_token else {}
-
-                content_url = f"{self.valves.openwebui_url}/api/v1/files/{file_id}/content"
-                logger.info(f"[INLET] Скачиваем файл: {content_url}")
-
-                response = requests.get(content_url, headers=headers, timeout=60)
-                if response.status_code != 200:
-                    logger.error(f"[INLET] Ошибка скачивания: {response.status_code}")
-                    return body
-
-                content = response.content
-
+                logger.warning("[INLET] Файл не найден в volume, fallback на HTTP")
+                # Здесь можно оставить старый HTTP-метод как fallback (или убрать)
+                return body
+    
             # Сохраняем во временный файл
             with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
                 tmp.write(content)
                 self.temp_file_path = tmp.name
 
-
             # Помечаем, что файл уже обработан
             Pipeline.done[str(self.file_name)] = True
-
+    
             logger.info(f"[INLET] Файл сохранён: {self.temp_file_path}")
             logger.info("=== [INLET] END (успех) ===")
-
+    
         except Exception as e:
             logger.exception(f"[INLET] Ошибка: {e}")
             logger.info("=== [INLET] END (ошибка) ===")
-
+    
         return body
-        
+      
     def pipe(
         self, user_message: str, model_id: str, messages: List[dict], body: dict
     ) -> Union[str, Generator, Iterator]:

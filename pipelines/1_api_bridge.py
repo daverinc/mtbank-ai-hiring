@@ -21,8 +21,9 @@ file_handler = True
 
 class Pipeline:
 
-    done = dict()
-    sent = dict()
+    done = {}       # файлы, которые уже прошли inlet
+    sent = {}       # файлы, которые уже отправлены
+    results = {}    # кэш результатов анализа
 
     class Valves(BaseModel):
         api_url: str = "http://api:8000/analyze"
@@ -61,44 +62,40 @@ class Pipeline:
             file = files[0]
             self.file_name = file.get("name", "audio.wav")
             file_id = file.get("id")
-
-            # Защита от повторного вызова
-            if Pipeline.done.get(str(self.file_name)):
-                logger.info(f"[INLET] Файл {self.file_name} уже был обработан. Пропускаем повторный вызов.")
-                return body
     
             if not file_id:
                 logger.error("[INLET] У файла отсутствует 'id'")
                 return body
     
-            # === Пробуем найти файл в volume ===
-            possible_paths = [
-                f"/app/openwebui_data/uploads/{file_id}_{self.file_name}",
-                f"/app/openwebui_data/uploads/{file_id}",
-            ]
+            # Защита от повторных вызовов
+            if Pipeline.done.get(file_id):
+                logger.info(f"[INLET] Файл {file_id} уже обработан. Пропускаем.")
+                return body
     
+            # === Поиск файла в volume ===
+            uploads_path = "/app/openwebui_data/uploads"
             file_path = None
-            for path in possible_paths:
-                if os.path.exists(path):
-                    file_path = path
-                    break
     
-            if file_path:
+            if os.path.exists(uploads_path):
+                for filename in os.listdir(uploads_path):
+                    if filename.startswith(file_id) and filename.endswith(('.wav', '.mp3', '.ogg')):
+                        file_path = os.path.join(uploads_path, filename)
+                        break
+    
+            if file_path and os.path.exists(file_path):
                 logger.info(f"[INLET] Файл найден в volume: {file_path}")
                 with open(file_path, "rb") as src:
                     content = src.read()
             else:
-                logger.warning("[INLET] Файл не найден в volume, fallback на HTTP")
-                # Здесь можно оставить старый HTTP-метод как fallback (или убрать)
+                logger.warning(f"[INLET] Файл не найден в volume (file_id={file_id})")
                 return body
     
             # Сохраняем во временный файл
             with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
                 tmp.write(content)
                 self.temp_file_path = tmp.name
-
-            # Помечаем, что файл уже обработан
-            Pipeline.done[str(self.file_name)] = True
+    
+            Pipeline.done[file_id] = True
     
             logger.info(f"[INLET] Файл сохранён: {self.temp_file_path}")
             logger.info("=== [INLET] END (успех) ===")
@@ -108,44 +105,47 @@ class Pipeline:
             logger.info("=== [INLET] END (ошибка) ===")
     
         return body
-      
+         
     def pipe(
         self, user_message: str, model_id: str, messages: List[dict], body: dict
     ) -> Union[str, Generator, Iterator]:
         logger.info("=== [PIPE] START ===")
-
+    
         try:
-            # Защита от повторной отправки
-            if Pipeline.sent.get(str(self.file_name)):
-                logger.info(f"[PIPE] Файл {self.file_name} уже был отправлен. Пропускаем повторный вызов.")
-                return None
-
+            # === Если результат уже есть — возвращаем его ===
+            if Pipeline.results.get(self.file_name):
+                logger.info(f"[PIPE] Возвращаем кэшированный результат для {self.file_name}")
+                return Pipeline.results[self.file_name]
+    
             if not self.temp_file_path or not os.path.exists(self.temp_file_path):
                 return "Ошибка: аудиофайл не был обработан в inlet."
-
+    
             with open(self.temp_file_path, "rb") as f:
                 response = requests.post(
                     self.valves.api_url,
                     files={"file": (self.file_name, f, "audio/wav")}
                 )
-
-            # Помечаем, что файл отправлен
-            Pipeline.sent[str(self.file_name)] = True
-      
-            # Удаляем временный файл
+    
             if os.path.exists(self.temp_file_path):
                 os.remove(self.temp_file_path)
                 self.temp_file_path = None
-
+    
             if response.status_code != 200:
                 return f"Ошибка API: {response.status_code}"
-
-            return self._format_response(response.json())
-
+    
+            # Форматируем результат
+            result = self._format_response(response.json())
+    
+            # === Сохраняем результат в кэш ===
+            Pipeline.results[self.file_name] = result
+    
+            logger.info(f"[PIPE] Результат сохранён в кэш для {self.file_name}")
+            return result
+    
         except Exception as e:
             logger.exception(f"[PIPE] Ошибка: {e}")
             return f"Ошибка при обработке аудио: {str(e)}"
-
+            
     def _format_response(self, data: dict) -> str:
         classification = data.get("classification", {})
         quality = data.get("quality_score", {})

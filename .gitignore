@@ -31,6 +31,9 @@ ENV/
 .venv/
 .conda/
 
+.ipynb_checkpoints/
+pipelines/.ipynb_checkpoints/
+
 # ======================
 # Environment variables
 # ======================
